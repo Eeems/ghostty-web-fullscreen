@@ -19,9 +19,10 @@ Open http://127.0.0.1:8080.
 
 Set these environment variables:
 
-- `PORT`: HTTP port. Default `8080`. Range `1` to `65535`.
+- `PORT`: HTTP port. Default `8080`.
 - `HOST`: bind address. Default `127.0.0.1`.
 - `GHOSTTY_ALLOWED_HOSTS`: comma-separated hostnames. Required for wildcard or non-loopback binds.
+- `STARTUP_COMMAND`: command to run in the PTY. Default uses tmux.
 
 Examples:
 
@@ -35,15 +36,15 @@ PORT=8080 HOST=0.0.0.0 GHOSTTY_ALLOWED_HOSTS=example.com,localhost npm start
 
 ## Startup command
 
-The PTY startup command comes from `startup.sh` in the project root. Edit that file to change the command.
+Set `STARTUP_COMMAND` to override the default. The value runs in the user's shell.
 
-Default:
+Default behavior: attach to an existing tmux session, or create one.
+
+Example:
 
 ```sh
-if tmux has-session 2>/dev/null; then exec tmux attach; else exec tmux; fi
+STARTUP_COMMAND='exec tmux new -s work' npm start
 ```
-
-If `startup.sh` is missing or empty, the server uses its built-in tmux behavior.
 
 ## Deployment
 

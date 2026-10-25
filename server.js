@@ -99,14 +99,11 @@ function tmuxHasSession() {
 }
 
 function getStartupCommand() {
-  const startupFile = path.join(__dirname, 'startup.sh');
-  if (fs.existsSync(startupFile)) {
-    const command = fs.readFileSync(startupFile, 'utf8').trim();
-    if (command.length > 0) {
-      return process.platform === 'win32'
-        ? { file: getShell(), args: ['/c', command] }
-        : { file: getShell(), args: ['-c', command] };
-    }
+  const command = (process.env.STARTUP_COMMAND || '').trim();
+  if (command.length > 0) {
+    return process.platform === 'win32'
+      ? { file: getShell(), args: ['/c', command] }
+      : { file: getShell(), args: ['-c', command] };
   }
 
   if (process.platform === 'win32' || !tmuxAvailable()) {
