@@ -1,0 +1,17 @@
+{
+  "name": "ghostty-web-fullscreen",
+  "version": "0.1.0",
+  "description": "Fullscreen ghostty-web with tmux startup",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js --dev"
+  },
+  "dependencies": {
+    "@lydell/node-pty": "^1.0.1",
+    "ghostty-web": "latest",
+    "ws": "^8.18.0"
+  },
+  "license": "MIT"
+}

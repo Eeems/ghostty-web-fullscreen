@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ghostty-web fullscreen</title>
+    <style>
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        background: #1e1e1e;
+        overflow: hidden;
+      }
+
+      #terminal {
+        position: fixed;
+        inset: 0;
+      }
+
+      #status {
+        position: fixed;
+        top: 8px;
+        right: 12px;
+        z-index: 10;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 12px;
+        color: #888;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        user-select: none;
+      }
+
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #888;
+      }
+
+      .status-dot.connected {
+        background: #27c93f;
+      }
+
+      .status-dot.disconnected {
+        background: #ff5f56;
+      }
+
+      .status-dot.connecting {
+        background: #ffbd2e;
+        animation: pulse 1s infinite;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.5;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="terminal"></div>
+    <div id="status">
+      <span class="status-dot connecting" id="status-dot"></span>
+      <span id="status-text">Connecting...</span>
+    </div>
+
+    <script type="module">
+      import { init, Terminal } from '/dist/ghostty-web.js';
+      import { FitAddon } from '/dist/ghostty-web.js';
+
+      await init();
+
+      const term = new Terminal({
+        cursorBlink: true,
+        fontSize: 14,
+        fontFamily: 'JetBrains Mono, Menlo, Monaco, monospace',
+        theme: {
+          background: '#1e1e1e',
+          foreground: '#d4d4d4',
+        },
+        scrollback: 10000,
+      });
+
+      const fitAddon = new FitAddon();
+      term.loadAddon(fitAddon);
+
+      const container = document.getElementById('terminal');
+      await term.open(container);
+      fitAddon.fit();
+      fitAddon.observeResize();
+
+      const statusDot = document.getElementById('status-dot');
+      const statusText = document.getElementById('status-text');
+
+      function setStatus(status, text) {
+        statusDot.className = 'status-dot ' + status;
+        statusText.textContent = text;
+      }
+
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      let ws;
+
+      async function fetchAuthToken() {
+        const response = await fetch('/api/token', { cache: 'no-store' });
+        if (!response.ok) {
+          throw new Error('Token request failed with HTTP ' + response.status);
+        }
+        const body = await response.json();
+        if (!body || typeof body.token !== 'string' || body.token.length === 0) {
+          throw new Error('Token response did not include a token');
+        }
+        return body.token;
+      }
+
+      function buildWebSocketUrl(token) {
+        const params = new URLSearchParams();
+        params.set('cols', String(term.cols));
+        params.set('rows', String(term.rows));
+        params.set('token', token);
+        return protocol + '//' + window.location.host + '/ws?' + params.toString();
+      }
+
+      async function connect() {
+        setStatus('connecting', 'Authenticating...');
+
+        let token;
+        try {
+          token = await fetchAuthToken();
+        } catch (error) {
+          console.error('Authentication failed:', error);
+          setStatus('disconnected', 'Auth error');
+          setTimeout(connect, 2000);
+          return;
+        }
+
+        setStatus('connecting', 'Connecting...');
+        ws = new WebSocket(buildWebSocketUrl(token));
+
+        ws.onopen = () => {
+          setStatus('connected', 'Connected');
+        };
+
+        ws.onmessage = (event) => {
+          term.write(event.data);
+        };
+
+        ws.onclose = () => {
+          setStatus('disconnected', 'Disconnected');
+          setTimeout(connect, 2000);
+        };
+
+        ws.onerror = () => {
+          setStatus('disconnected', 'Error');
+        };
+      }
+
+      connect();
+
+      term.onData((data) => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(data);
+        }
+      });
+
+      term.onResize(({ cols, rows }) => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'resize', cols, rows }));
+        }
+      });
+
+      window.addEventListener('resize', () => {
+        fitAddon.fit();
+      });
+    </script>
+  </body>
+</html>
